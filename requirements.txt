@@ -1,0 +1,4 @@
+anticaptchaofficial==1.0.59
+selenium==4.17.2
+undetected_chromedriver==3.5.4
+webdriver_manager==4.0.1
