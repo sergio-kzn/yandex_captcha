@@ -2,20 +2,35 @@ import os
 
 from anticaptchaofficial.imagetocoordinates import *
 from anticaptchaofficial.imagecaptcha import *
+from anticaptchaofficial.recaptchav2proxyless import *
 
 import undetected_chromedriver as uc
 from selenium.webdriver.common.actions.action_builder import ActionBuilder
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 
 class Solver:
     def __init__(self, driver):
-        self.verbose = VERBOSE
-        self.key = KEY
+        self.verbose = os.getenv('VERBOSE_ANTICAPTCHA', 0)  # if verbose: печатается отладка
+        self.key = os.getenv('KEY_API_ANTICAPTCHA')
         self.driver: uc.Chrome = driver
         self.img = None
         self.exercise = None
         self.result = None
+
+        if not self.key:
+            raise Exception('Не указан ключ API, https://anti-captcha.com/clients/settings/apisetup')
+        self.check_balance()
+
+    def check_balance(self):
+        solver = recaptchaV2Proxyless()
+        solver.set_verbose(self.verbose)
+        solver.set_key(self.key)
+        balance = solver.get_balance()
+        if balance <= 0:
+            raise Exception('Проверьте баланс, https://anti-captcha.com/clients/finance/refill')
 
     def solve(self):
         # Промежуточный шаг проверки (Галочка "Я не робот" или слайдер)
@@ -50,6 +65,7 @@ class Solver:
 
     def get_img(self):
         # для отправки картинки на задание, надо чтобы у картинки было видно само задание.
+        WebDriverWait(self.driver, 60).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div.AdvancedCaptcha-FormActions')))
         form_actions = self.driver.find_element(By.CSS_SELECTOR, 'div.AdvancedCaptcha-FormActions')
         form_footer = self.driver.find_element(By.CSS_SELECTOR, 'div.AdvancedCaptcha-Footer')
         self.driver.execute_script("arguments[0].style.display = 'none';", form_actions)
@@ -93,7 +109,7 @@ class Solver:
             self.result = captcha_text
             self.driver.find_element(By.CSS_SELECTOR, 'input.Textinput-Control').send_keys(self.result)
         else:
-            print("task finished with error " + solver.error_code)
+            raise Exception("task finished with error " + solver.error_code)
 
     def image_to_coordinates(self):
         solver = imagetocoordinates()
@@ -111,11 +127,4 @@ class Solver:
                 advanced_captcha = self.driver.find_element(By.CSS_SELECTOR, 'div.AdvancedCaptcha-ImageWrapper')
                 self.element_clicked(advanced_captcha, dx, dy)
         else:
-            print("task finished with error "+solver.error_code)
-
-
-VERBOSE = os.getenv('VERBOSE_ANTICAPTCHA', 1)
-KEY = os.getenv('KEY_API_ANTICAPTCHA')
-
-if not KEY:
-    raise Exception('Не указан ключ, https://anti-captcha.com/clients/settings/apisetup')
+            raise Exception("task finished with error "+solver.error_code)
